@@ -24,7 +24,7 @@ import torchvision.datasets as datasets
 
 import timm
 
-assert timm.__version__ == "0.3.2"  # version check
+# assert timm.__version__ == "0.3.2"  # version check
 import timm.optim.optim_factory as optim_factory
 
 import util.misc as misc
@@ -82,6 +82,7 @@ def get_args_parser():
     parser.add_argument('--device', default='cuda',
                         help='device to use for training / testing')
     parser.add_argument('--seed', default=0, type=int)
+    parser.add_argument('--distributed', default=False, type=bool)
     parser.add_argument('--resume', default='',
                         help='resume from checkpoint')
 
@@ -100,12 +101,14 @@ def get_args_parser():
     parser.add_argument('--dist_on_itp', action='store_true')
     parser.add_argument('--dist_url', default='env://',
                         help='url used to set up distributed training')
+    parser.add_argument('--test_mode', default=False, type=bool)
 
     return parser
 
 
 def main(args):
-    misc.init_distributed_mode(args)
+
+    # misc.init_distributed_mode(args)
 
     print('job dir: {}'.format(os.path.dirname(os.path.realpath(__file__))))
     print("{}".format(args).replace(', ', ',\n'))
@@ -128,7 +131,7 @@ def main(args):
     dataset_train = datasets.ImageFolder(os.path.join(args.data_path, 'train'), transform=transform_train)
     print(dataset_train)
 
-    if True:  # args.distributed:
+    if args.distributed:
         num_tasks = misc.get_world_size()
         global_rank = misc.get_rank()
         sampler_train = torch.utils.data.DistributedSampler(
@@ -136,6 +139,7 @@ def main(args):
         )
         print("Sampler_train = %s" % str(sampler_train))
     else:
+        global_rank = 0
         sampler_train = torch.utils.data.RandomSampler(dataset_train)
 
     if global_rank == 0 and args.log_dir is not None:
@@ -218,4 +222,13 @@ if __name__ == '__main__':
     args = args.parse_args()
     if args.output_dir:
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+    
+    args.test_mode = True
+    if args.test_mode:
+        args.model = "mae_vit_tiny_testing"
+        args.data_path = "data/fakedataset/"
+        args.device = "cpu"
+        args.distributed = False
+        args.num_workers = 0
+        args.batch_size = 2
     main(args)
