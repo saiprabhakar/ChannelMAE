@@ -1,2 +1,5 @@
 data/*
+*.pyc
+*.swp
+.DS_Store
 output_dir/*
