@@ -35,7 +35,7 @@ class MaskedAutoencoderChaViT(nn.Module):
         decoder_num_heads=16,
         mlp_ratio=4.0,
         norm_layer=nn.LayerNorm,
-        norm_pix_loss=False, # TODO implement this
+        norm_pix_loss=False,  # TODO implement this
     ):
         super().__init__()
 
@@ -51,7 +51,7 @@ class MaskedAutoencoderChaViT(nn.Module):
         # we have channel specifc embedding in addition to positional embedding
         self.channel_embed = nn.Embedding(in_chans, embed_dim)
         self.decoder_channel_embed = nn.Embedding(in_chans, decoder_embed_dim)
-        
+
         self.pos_embed = nn.Parameter(
             torch.zeros(1, num_patches + 1, embed_dim), requires_grad=False
         )  # fixed sin-cos embedding
@@ -100,7 +100,7 @@ class MaskedAutoencoderChaViT(nn.Module):
             decoder_embed_dim, patch_size**2, bias=True
         )  # decoder to patch
         # --------------------------------------------------------------------------
-        # self.norm_pix_loss = norm_pix_loss
+        self.norm_pix_loss = norm_pix_loss
 
         self.initialize_weights()
 
@@ -149,13 +149,19 @@ class MaskedAutoencoderChaViT(nn.Module):
         imgs: (N, C, H, W)
         x: (N, L*C, patch_size**2)
         """
-        p = self.patch_embed.patch_size[0] # 16
+        p = self.patch_embed.patch_size[0]  # 16
         assert imgs.shape[2] == imgs.shape[3] and imgs.shape[2] % p == 0
 
-        h = w = imgs.shape[2] // p # 14
-        x = imgs.reshape(shape=(imgs.shape[0], self.in_chans, h, p, w, p)) # B, nc, h, p, w, p # torch.Size([2, 3, 14, 16, 14, 16])
-        x = torch.einsum("nchpwq->nchwpq", x) # B, h, w, nc, p, p # torch.Size([2, 3, 14, 14, 16, 16])
-        x = x.reshape(shape=(imgs.shape[0], self.in_chans*h*w, p**2)) # torch.Size([2, 588, 256])
+        h = w = imgs.shape[2] // p  # 14
+        x = imgs.reshape(
+            shape=(imgs.shape[0], self.in_chans, h, p, w, p)
+        )  # B, nc, h, p, w, p # torch.Size([2, 3, 14, 16, 14, 16])
+        x = torch.einsum(
+            "nchpwq->nchwpq", x
+        )  # B, h, w, nc, p, p # torch.Size([2, 3, 14, 14, 16, 16])
+        x = x.reshape(
+            shape=(imgs.shape[0], self.in_chans * h * w, p**2)
+        )  # torch.Size([2, 588, 256])
         x_un = self.unpatchify(x)
         assert torch.allclose(imgs, x_un)
         return x
@@ -166,10 +172,12 @@ class MaskedAutoencoderChaViT(nn.Module):
         imgs: (N, C, H, W)
         """
         p = self.patch_embed.patch_size[0]
-        h = w = int( (x.shape[1]/self.in_chans) ** 0.5)
+        h = w = int((x.shape[1] / self.in_chans) ** 0.5)
         assert h * w == x.shape[1] // self.in_chans
 
-        x = x.reshape(shape=(x.shape[0], self.in_chans, h, w, p, p)) # [N, C, h, w, p, p]
+        x = x.reshape(
+            shape=(x.shape[0], self.in_chans, h, w, p, p)
+        )  # [N, C, h, w, p, p]
         x = torch.einsum("nchwpq->nchpwq", x)
         imgs = x.reshape(shape=(x.shape[0], self.in_chans, h * p, h * p))
         return imgs
@@ -204,65 +212,78 @@ class MaskedAutoencoderChaViT(nn.Module):
         return x_masked, mask, ids_restore
 
     def forward_encoder(self, x, mask_ratio):
-        B, nc, H, W = x.shape # torch.Size([2, 3, 224, 224])
+        B, nc, H, W = x.shape  # torch.Size([2, 3, 224, 224])
         # x: [B, nc, H, W]
         # self.pos_embed: torch.Size([1, 197, 128])
         # self.cls_token: torch.Size([1, 1, 128])
 
         # embed the patches by merging the channels and batch dimensions
         # x: [B, nc, H, W] -> [B, L, D] ; L = H*W*nc/(p*p)
-        x = x.reshape(-1, 1, H, W) # torch.Size([6, 1, 224, 224])
-        x = self.patch_embed(x) # [B*nc, 1, L, D] # torch.Size([6, 196, 128])
-        x = x.reshape(B, nc, -1, x.shape[-1]) # [B, nc, L, D] # torch.Size([2, 3, 196, 128])
-        L = x.shape[2] # 196
+        x = x.reshape(-1, 1, H, W)  # torch.Size([6, 1, 224, 224])
+        x = self.patch_embed(x)  # [B*nc, 1, L, D] # torch.Size([6, 196, 128])
+        x = x.reshape(
+            B, nc, -1, x.shape[-1]
+        )  # [B, nc, L, D] # torch.Size([2, 3, 196, 128])
+        L = x.shape[2]  # 196
 
         # add pos embed w/o cls token
-        pos_embed = self.pos_embed[:, 1:, :] # torch.Size([1, 196, 128])
-        cls_pos_embed = self.pos_embed[:, :1, :] # torch.Size([1, 1, 128])
-        pos_embed = pos_embed.unsqueeze(1) # [B, L, D] # torch.Size([1, 1, 196, 128])
-        x = x + pos_embed # [B, ch, L, D] # torch.Size([2, 3, 196, 128])
+        pos_embed = self.pos_embed[:, 1:, :]  # torch.Size([1, 196, 128])
+        cls_pos_embed = self.pos_embed[:, :1, :]  # torch.Size([1, 1, 128])
+        pos_embed = pos_embed.unsqueeze(1)  # [B, L, D] # torch.Size([1, 1, 196, 128])
+        x = x + pos_embed  # [B, ch, L, D] # torch.Size([2, 3, 196, 128])
 
         # add channel embed, not for cls token
-        channels = torch.arange(nc, device=x.device).long() # [0,1,2]
-        channel_embed = self.channel_embed(channels) # [nc, D] # torch.Size([3, 128])
-        channel_embed = channel_embed.unsqueeze(0).unsqueeze(2) # [1, nc, 1, D] # torch.Size([1, 3, 1, 128])
-        x = x + channel_embed # [B, nc, L, D] # torch.Size([2, 3, 196, 128])
+        channels = torch.arange(nc, device=x.device).long()  # [0,1,2]
+        channel_embed = self.channel_embed(channels)  # [nc, D] # torch.Size([3, 128])
+        channel_embed = channel_embed.unsqueeze(0).unsqueeze(
+            2
+        )  # [1, nc, 1, D] # torch.Size([1, 3, 1, 128])
+        x = x + channel_embed  # [B, nc, L, D] # torch.Size([2, 3, 196, 128])
 
         # implement random masking by laying out the channels and patches in the same dimension
-        x = x.reshape(B, L*nc, -1) # [B*nc, L, D] # torch.Size([2, 588, 128])
+        x = x.reshape(B, L * nc, -1)  # [B*nc, L, D] # torch.Size([2, 588, 128])
         # masking: length -> length * mask_ratio
-        x, mask, ids_restore = self.random_masking(x, mask_ratio) # x: [2, 147, 128] # mask [2, 588] # ids_restore [2, 588]
+        x, mask, ids_restore = self.random_masking(
+            x, mask_ratio
+        )  # x: [2, 147, 128] # mask [2, 588] # ids_restore [2, 588]
 
         # append cls token
-        cls_token = self.cls_token + self.pos_embed[:, :1, :] # torch.Size([1, 1, 128])
-        cls_tokens = cls_token.expand(B, -1, -1) # torch.Size([2, 1, 128])
-        x = torch.cat((cls_tokens, x), dim=1) # x: [2, 148, 128]
+        cls_token = self.cls_token + self.pos_embed[:, :1, :]  # torch.Size([1, 1, 128])
+        cls_tokens = cls_token.expand(B, -1, -1)  # torch.Size([2, 1, 128])
+        x = torch.cat((cls_tokens, x), dim=1)  # x: [2, 148, 128]
 
         # apply Transformer blocks
-        for blk in self.blocks: # x: [2, 148, 128]
+        for blk in self.blocks:  # x: [2, 148, 128]
             x = blk(x)
-        x = self.norm(x) # x: [2, 148, 128]
+        x = self.norm(x)  # x: [2, 148, 128]
 
-        return x, mask, ids_restore # x: [2, 148, 128], mask: [2, 588], ids_restore: [2, 588]
+        return (
+            x,
+            mask,
+            ids_restore,
+        )  # x: [2, 148, 128], mask: [2, 588], ids_restore: [2, 588]
 
-    def forward_decoder(self, x, ids_restore): 
-        # x: [2, 148, 128] 
-        # ids_restore: [2, 588] 
-        # self.mask_token: torch.Size([1, 1, 64]) 
+    def forward_decoder(self, x, ids_restore):
+        # x: [2, 148, 128]
+        # ids_restore: [2, 588]
+        # self.mask_token: torch.Size([1, 1, 64])
         # self.docoder_pos_embed: torch.Size([1, 197, 64])
 
         # embed the unmasked tokens
-        x = self.decoder_embed(x) # [2, 148, 64]
+        x = self.decoder_embed(x)  # [2, 148, 64]
 
         # append mask tokens to sequence
-        mask_tokens = self.mask_token.repeat(x.shape[0], ids_restore.shape[1] + 1 - x.shape[1], 1) # torch.Size([2, 441, 64])
-        x_ = torch.cat([x[:, 1:, :], mask_tokens], dim=1)  # no cls token # torch.Size([2, 588, 64])
-        
+        mask_tokens = self.mask_token.repeat(
+            x.shape[0], ids_restore.shape[1] + 1 - x.shape[1], 1
+        )  # torch.Size([2, 441, 64])
+        x_ = torch.cat(
+            [x[:, 1:, :], mask_tokens], dim=1
+        )  # no cls token # torch.Size([2, 588, 64])
+
         # unshuffle the masked and unmasked tokens
         x_ = torch.gather(
             x_, dim=1, index=ids_restore.unsqueeze(-1).repeat(1, 1, x.shape[2])
-        ) # torch.Size([2, 588, 64])
-
+        )  # torch.Size([2, 588, 64])
 
         # # approach 1
         # # first add the positional embed then the channel embed
@@ -285,41 +306,49 @@ class MaskedAutoencoderChaViT(nn.Module):
         # # add cls token back to the sequence
         # x1 = torch.cat([x_cls, x_1], dim=1) # [B, nc*L+1, D] # torch.Size([2, 589, 64])
 
-
         # approach 2
         # first add the channel embed then the positional embed
 
         # add channel embed to all but cls token
-        channels = torch.arange(self.in_chans, device=x.device).long() # channels
-        dec_channel_embed = self.decoder_channel_embed(channels) # [nc, D] # torch.Size([3, 64])
-        dec_channel_embed = dec_channel_embed.unsqueeze(0).unsqueeze(2) # [1, nc, 1, D] # torch.Size([1, 3, 1, 64])
-        x_2 = x_.reshape(x.shape[0], self.in_chans, -1, x.shape[-1]) # torch.Size([2, 3, 196, 64])
-        x_2 = x_2 + dec_channel_embed # [B, nc, L, D] # torch.Size([2, 3, 196, 64])
+        channels = torch.arange(self.in_chans, device=x.device).long()  # channels
+        dec_channel_embed = self.decoder_channel_embed(
+            channels
+        )  # [nc, D] # torch.Size([3, 64])
+        dec_channel_embed = dec_channel_embed.unsqueeze(0).unsqueeze(
+            2
+        )  # [1, nc, 1, D] # torch.Size([1, 3, 1, 64])
+        x_2 = x_.reshape(
+            x.shape[0], self.in_chans, -1, x.shape[-1]
+        )  # torch.Size([2, 3, 196, 64])
+        x_2 = x_2 + dec_channel_embed  # [B, nc, L, D] # torch.Size([2, 3, 196, 64])
 
         # add positional embed to all but cls token
-        dec_pos_embed = self.decoder_pos_embed[:, 1:, :].unsqueeze(1) # [1, L, D] -> [1, 1, L, D] # torch.Size([1, 1, 196, 64])
-        x_2_w_pos_embed = x_2 + dec_pos_embed # torch.Size([2, 3, 196, 64])
-        x_2_w_pos_embed = x_2_w_pos_embed.reshape(x.shape[0], -1, x.shape[-1]) # [B, nc*L, D] # torch.Size([2, 588, 64])
-        
-        x_cls = x[:, :1, :] + self.decoder_pos_embed[:, :1, :] # torch.Size([2, 1, 64])
+        dec_pos_embed = self.decoder_pos_embed[:, 1:, :].unsqueeze(
+            1
+        )  # [1, L, D] -> [1, 1, L, D] # torch.Size([1, 1, 196, 64])
+        x_2_w_pos_embed = x_2 + dec_pos_embed  # torch.Size([2, 3, 196, 64])
+        x_2_w_pos_embed = x_2_w_pos_embed.reshape(
+            x.shape[0], -1, x.shape[-1]
+        )  # [B, nc*L, D] # torch.Size([2, 588, 64])
+
+        x_cls = x[:, :1, :] + self.decoder_pos_embed[:, :1, :]  # torch.Size([2, 1, 64])
         x2 = torch.cat([x_cls, x_2_w_pos_embed], dim=1)
 
         # assert torch.allclose(x1,x2, rtol=1e-06, atol=1e-06)
 
-
         x = x2
 
         # apply Transformer blocks
-        for blk in self.decoder_blocks: # torch.Size([2, 589, 64])
+        for blk in self.decoder_blocks:  # torch.Size([2, 589, 64])
             x = blk(x)
-        x = self.decoder_norm(x) # torch.Size([2, 589, 64])
+        x = self.decoder_norm(x)  # torch.Size([2, 589, 64])
 
         # predictor projection
-        x = self.decoder_pred(x) # torch.Size([2, 589, 256])
+        x = self.decoder_pred(x)  # torch.Size([2, 589, 256])
 
         # remove cls token
-        x = x[:, 1:, :] # B, L*c, p*p # torch.Size([2, 588, 256])
-        return x # torch.Size([2, 588, 256])
+        x = x[:, 1:, :]  # B, L*c, p*p # torch.Size([2, 588, 256])
+        return x  # torch.Size([2, 588, 256])
 
     def forward_loss(self, imgs, pred, mask):
         """
@@ -328,10 +357,10 @@ class MaskedAutoencoderChaViT(nn.Module):
         mask: [N, L*C], 0 is keep, 1 is remove,
         """
         target = self.patchify(imgs)
-        # if self.norm_pix_loss:
-        #     mean = target.mean(dim=-1, keepdim=True)
-        #     var = target.var(dim=-1, keepdim=True)
-        #     target = (target - mean) / (var + 1.0e-6) ** 0.5
+        if self.norm_pix_loss:
+            mean = target.mean(dim=-1, keepdim=True)
+            var = target.var(dim=-1, keepdim=True)
+            target = (target - mean) / (var + 1.0e-6) ** 0.5
 
         loss = (pred - target) ** 2
         loss = loss.mean(dim=-1)  # [N, L], mean loss per patch
@@ -342,17 +371,28 @@ class MaskedAutoencoderChaViT(nn.Module):
     def forward(self, imgs, mask_ratio=0.75):
         latent, mask, ids_restore = self.forward_encoder(
             imgs, mask_ratio
-        ) # x: [2, 148, 128], mask: [2, 588], ids_restore: [2, 588]
+        )  # x: [2, 148, 128], mask: [2, 588], ids_restore: [2, 588]
 
-        pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*C] # torch.Size([2, 588, 256])
+        pred = self.forward_decoder(
+            latent, ids_restore
+        )  # [N, L, p*p*C] # torch.Size([2, 588, 256])
         loss = self.forward_loss(imgs, pred, mask)
-        return loss, pred, mask # loss: scalar, pred: [2, 588, 256], mask: [2, 588]
+        return loss, pred, mask  # loss: scalar, pred: [2, 588, 256], mask: [2, 588]
+
 
 def chmae_vit_tiny_testing_patch16_dec64d2b(**kwargs):
     model = MaskedAutoencoderChaViT(
-        patch_size=16, embed_dim=128, depth=4, num_heads=4,
-        decoder_embed_dim=64, decoder_depth=2, decoder_num_heads=4,
-        mlp_ratio=2, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+        patch_size=16,
+        embed_dim=128,
+        depth=4,
+        num_heads=4,
+        decoder_embed_dim=64,
+        decoder_depth=2,
+        decoder_num_heads=4,
+        mlp_ratio=2,
+        norm_layer=partial(nn.LayerNorm, eps=1e-6),
+        **kwargs
+    )
     return model
 
 
