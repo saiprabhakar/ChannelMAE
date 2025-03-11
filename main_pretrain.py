@@ -31,6 +31,7 @@ import util.misc as misc
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 
 import models_mae
+import models_chamae
 
 from engine_pretrain import train_one_epoch
 
@@ -157,7 +158,10 @@ def main(args):
     )
     
     # define the model
-    model = models_mae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss)
+    if args.model.startswith("chmae"):
+        model = models_chamae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss)
+    else:
+        model = models_mae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss)
 
     model.to(device)
 
@@ -225,7 +229,8 @@ if __name__ == '__main__':
     
     args.test_mode = True
     if args.test_mode:
-        args.model = "mae_vit_tiny_testing"
+        # args.model = "mae_vit_tiny_testing"
+        args.model = "chmae_vit_tiny_testing"
         args.data_path = "data/fakedataset/"
         args.device = "cpu"
         args.distributed = False
