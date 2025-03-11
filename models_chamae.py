@@ -145,30 +145,34 @@ class MaskedAutoencoderChaViT(nn.Module):
 
     def patchify(self, imgs):
         """
-        imgs: (N, 3, H, W)
-        x: (N, L, patch_size**2 *3)
+        imgs: (N, C, H, W)
+        x: (N, L*C, patch_size**2)
         """
         p = self.patch_embed.patch_size[0]
         assert imgs.shape[2] == imgs.shape[3] and imgs.shape[2] % p == 0
 
         h = w = imgs.shape[2] // p
-        x = imgs.reshape(shape=(imgs.shape[0], 3, h, p, w, p))
-        x = torch.einsum("nchpwq->nhwpqc", x)
-        x = x.reshape(shape=(imgs.shape[0], h * w, p**2 * 3))
+        x = imgs.reshape(shape=(imgs.shape[0], self.in_chans, h, p, w, p)) # B, nc, h, p, w, p
+        x = torch.einsum("nchpwq->nchwpq", x) # B, h, w, nc, p, p
+        x = x.reshape(shape=(imgs.shape[0], self.in_chans, h * w, p**2))
+        x = x.reshape(shape=(imgs.shape[0], h * w * self.in_chans, p**2))
+        # x = x.reshape(shape=(imgs.shape[0], h * w, p**2 * self.in_chans))
         return x
 
     def unpatchify(self, x):
         """
-        x: (N, L, patch_size**2 *3)
-        imgs: (N, 3, H, W)
+        x: (N, L*C, patch_size**2)
+        imgs: (N, C, H, W)
         """
         p = self.patch_embed.patch_size[0]
-        h = w = int(x.shape[1] ** 0.5)
-        assert h * w == x.shape[1]
+        h = w = int( (x.shape[1]/self.in_chans) ** 0.5)
+        # assert h * w == x.shape[1]/p
 
-        x = x.reshape(shape=(x.shape[0], h, w, p, p, 3))
-        x = torch.einsum("nhwpqc->nchpwq", x)
-        imgs = x.reshape(shape=(x.shape[0], 3, h * p, h * p))
+        x = x.reshape(shape=(x.shape[0], self.in_chans, -1, x.shape[-1])) # [N, C, L, p*p]
+        x = x.reshape(shape=(x.shape[0], self.in_chans, x.shape[2], p, p)) # [N, C, L, p, p]
+        x = x.reshape(shape=(x.shape[0], self.in_chans, h, w, p, p)) # [N, C, h, w, p, p]
+        x = torch.einsum("nchwpq->nchpwq", x)
+        imgs = x.reshape(shape=(x.shape[0], self.in_chans, h * p, h * p))
         return imgs
 
     def random_masking(self, x, mask_ratio):
@@ -202,11 +206,28 @@ class MaskedAutoencoderChaViT(nn.Module):
 
     def forward_encoder(self, x, mask_ratio):
         # embed patches
-        x = self.patch_embed(x)
+        # x: [B, nc, H, W] -> [B, L, D]
+        # L = H*W*nc/(p*p)
+        B, nc, H, W = x.shape
+        
+        x = x.reshape(-1, 1, H, W)
+        x = self.patch_embed(x) # [B*nc, 1, L, D]
+        x = x.reshape(B, nc, -1, x.shape[-1]) # [B, nc, L, D]
+        L = x.shape[2]
 
         # add pos embed w/o cls token
-        x = x + self.pos_embed[:, 1:, :]
+        pos_embed = self.pos_embed[:, 1:, :] # 
+        cls_pos_embed = self.pos_embed[:, :1, :]
+        pos_embed = pos_embed.unsqueeze(1) # [B, L, D]
+        x = x + pos_embed # [B, ch, L, D]
 
+        channels = torch.arange(nc, device=x.device).long()
+        channel_embed = self.channel_embed(channels) # [nc, D]
+        channel_embed = channel_embed.unsqueeze(0).unsqueeze(2) # [1, nc, 1, D]
+        x = x + channel_embed # [B, nc, L, D]
+
+
+        x = x.reshape(B, L*nc, -1) # [B*nc, L, D]
         # masking: length -> length * mask_ratio
         x, mask, ids_restore = self.random_masking(x, mask_ratio)
 
@@ -230,11 +251,30 @@ class MaskedAutoencoderChaViT(nn.Module):
         mask_tokens = self.mask_token.repeat(
             x.shape[0], ids_restore.shape[1] + 1 - x.shape[1], 1
         )
+        x_cls = x[:, :1, :]
         x_ = torch.cat([x[:, 1:, :], mask_tokens], dim=1)  # no cls token
+        
         x_ = torch.gather(
             x_, dim=1, index=ids_restore.unsqueeze(-1).repeat(1, 1, x.shape[2])
         )  # unshuffle
-        x = torch.cat([x[:, :1, :], x_], dim=1)  # append cls token
+        # x : [B, L+1, nemb]
+        # reshape to [B, nc, l, nemb]
+        x_reshaped = x_.reshape(x.shape[0], self.in_chans, -1, x.shape[-1])
+        dec_pos_embed = self.decoder_pos_embed[:, 1:, :].unsqueeze(1) # [1, L, D] -> [1, 1, L, D]
+        x_reshaped = x_reshaped + dec_pos_embed # [B, nc, L, D]
+        # add channel embed
+        channels = torch.arange(self.in_chans, device=x.device).long()
+        dec_channel_embed = self.decoder_channel_embed(channels) # [nc, D]
+        dec_channel_embed = dec_channel_embed.unsqueeze(0).unsqueeze(2) # [1, nc, 1, D]
+        x_reshaped = x_reshaped + dec_channel_embed # [B, nc, L, D]
+        x_ = x_reshaped.reshape(x.shape[0], -1, x.shape[-1]) # [B, nc*L, D]
+
+        cls_pos_embed = self.decoder_pos_embed[:, :1, :]
+        x_cls = x_cls + cls_pos_embed
+
+        
+        x = torch.cat([x_cls, x_], dim=1) # [B, nc*L+1, D]
+        # print("decoder blocks input shape", x.shape)
 
         # add pos embed
         x = x + self.decoder_pos_embed
@@ -249,14 +289,14 @@ class MaskedAutoencoderChaViT(nn.Module):
 
         # remove cls token
         x = x[:, 1:, :]
-
+        # print("decoder shape", x.shape) # B, L*c, p*p
         return x
 
     def forward_loss(self, imgs, pred, mask):
         """
-        imgs: [N, 3, H, W]
-        pred: [N, L, p*p*3]
-        mask: [N, L], 0 is keep, 1 is remove,
+        imgs: [N, C, H, W]
+        pred: [N, L*C, p*p]
+        mask: [N, L*C], 0 is keep, 1 is remove,
         """
         target = self.patchify(imgs)
         # if self.norm_pix_loss:
@@ -271,7 +311,9 @@ class MaskedAutoencoderChaViT(nn.Module):
         return loss
 
     def forward(self, imgs, mask_ratio=0.75):
-        latent, mask, ids_restore = self.forward_encoder(imgs, mask_ratio)
-        pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*3]
+        latent, mask, ids_restore = self.forward_encoder(
+            imgs, mask_ratio
+        )
+        pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*C]
         loss = self.forward_loss(imgs, pred, mask)
         return loss, pred, mask
