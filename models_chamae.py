@@ -100,7 +100,7 @@ class MaskedAutoencoderChaViT(nn.Module):
             decoder_embed_dim, patch_size**2, bias=True
         )  # decoder to patch
         # --------------------------------------------------------------------------
-        # self.norm_pix_loss = norm_pix_loss
+        self.norm_pix_loss = norm_pix_loss
 
         self.initialize_weights()
 
@@ -328,10 +328,10 @@ class MaskedAutoencoderChaViT(nn.Module):
         mask: [N, L*C], 0 is keep, 1 is remove,
         """
         target = self.patchify(imgs)
-        # if self.norm_pix_loss:
-        #     mean = target.mean(dim=-1, keepdim=True)
-        #     var = target.var(dim=-1, keepdim=True)
-        #     target = (target - mean) / (var + 1.0e-6) ** 0.5
+        if self.norm_pix_loss:
+            mean = target.mean(dim=-1, keepdim=True)
+            var = target.var(dim=-1, keepdim=True)
+            target = (target - mean) / (var + 1.0e-6) ** 0.5
 
         loss = (pred - target) ** 2
         loss = loss.mean(dim=-1)  # [N, L], mean loss per patch

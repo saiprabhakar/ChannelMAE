@@ -236,4 +236,5 @@ if __name__ == '__main__':
         args.distributed = False
         args.num_workers = 0
         args.batch_size = 2
+        args.epochs = 2
     main(args)
