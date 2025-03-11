@@ -35,13 +35,14 @@ class MaskedAutoencoderChaViT(nn.Module):
         decoder_num_heads=16,
         mlp_ratio=4.0,
         norm_layer=nn.LayerNorm,
-        # norm_pix_loss=False,
+        norm_pix_loss=False, # TODO implement this
     ):
         super().__init__()
 
         # --------------------------------------------------------------------------
         # ChaMAE encoder specifics
         self.in_chans = in_chans
+        self.patch_size = patch_size
         # we have same filter for all channels
         self.patch_embed = PatchEmbed(img_size, patch_size, 1, embed_dim)
         num_patches = self.patch_embed.num_patches
@@ -205,43 +206,46 @@ class MaskedAutoencoderChaViT(nn.Module):
         return x_masked, mask, ids_restore
 
     def forward_encoder(self, x, mask_ratio):
-        # embed patches
-        # x: [B, nc, H, W] -> [B, L, D]
-        # L = H*W*nc/(p*p)
-        B, nc, H, W = x.shape
-        
-        x = x.reshape(-1, 1, H, W)
-        x = self.patch_embed(x) # [B*nc, 1, L, D]
-        x = x.reshape(B, nc, -1, x.shape[-1]) # [B, nc, L, D]
-        L = x.shape[2]
+        B, nc, H, W = x.shape # torch.Size([2, 3, 224, 224])
+        # x: [B, nc, H, W]
+        # self.pos_embed: torch.Size([1, 197, 128])
+        # self.cls_token: torch.Size([1, 1, 128])
+
+        # embed the patches by merging the channels and batch dimensions
+        # x: [B, nc, H, W] -> [B, L, D] ; L = H*W*nc/(p*p)
+        x = x.reshape(-1, 1, H, W) # torch.Size([6, 1, 224, 224])
+        x = self.patch_embed(x) # [B*nc, 1, L, D] # torch.Size([6, 196, 128])
+        x = x.reshape(B, nc, -1, x.shape[-1]) # [B, nc, L, D] # torch.Size([2, 3, 196, 128])
+        L = x.shape[2] # 196
 
         # add pos embed w/o cls token
-        pos_embed = self.pos_embed[:, 1:, :] # 
-        cls_pos_embed = self.pos_embed[:, :1, :]
-        pos_embed = pos_embed.unsqueeze(1) # [B, L, D]
-        x = x + pos_embed # [B, ch, L, D]
+        pos_embed = self.pos_embed[:, 1:, :] # torch.Size([1, 196, 128])
+        cls_pos_embed = self.pos_embed[:, :1, :] # torch.Size([1, 1, 128])
+        pos_embed = pos_embed.unsqueeze(1) # [B, L, D] # torch.Size([1, 1, 196, 128])
+        x = x + pos_embed # [B, ch, L, D] # torch.Size([2, 3, 196, 128])
 
-        channels = torch.arange(nc, device=x.device).long()
-        channel_embed = self.channel_embed(channels) # [nc, D]
-        channel_embed = channel_embed.unsqueeze(0).unsqueeze(2) # [1, nc, 1, D]
-        x = x + channel_embed # [B, nc, L, D]
+        # add channel embed, not for cls token
+        channels = torch.arange(nc, device=x.device).long() # [0,1,2]
+        channel_embed = self.channel_embed(channels) # [nc, D] # torch.Size([3, 128])
+        channel_embed = channel_embed.unsqueeze(0).unsqueeze(2) # [1, nc, 1, D] # torch.Size([1, 3, 1, 128])
+        x = x + channel_embed # [B, nc, L, D] # torch.Size([2, 3, 196, 128])
 
-
-        x = x.reshape(B, L*nc, -1) # [B*nc, L, D]
+        # implement random masking by laying out the channels and patches in the same dimension
+        x = x.reshape(B, L*nc, -1) # [B*nc, L, D] # torch.Size([2, 588, 128])
         # masking: length -> length * mask_ratio
-        x, mask, ids_restore = self.random_masking(x, mask_ratio)
+        x, mask, ids_restore = self.random_masking(x, mask_ratio) # x: [2, 147, 128] # mask [2, 588] # ids_restore [2, 588]
 
         # append cls token
-        cls_token = self.cls_token + self.pos_embed[:, :1, :]
-        cls_tokens = cls_token.expand(x.shape[0], -1, -1)
-        x = torch.cat((cls_tokens, x), dim=1)
+        cls_token = self.cls_token + self.pos_embed[:, :1, :] # torch.Size([1, 1, 128])
+        cls_tokens = cls_token.expand(B, -1, -1) # torch.Size([2, 1, 128])
+        x = torch.cat((cls_tokens, x), dim=1) # x: [2, 148, 128]
 
         # apply Transformer blocks
-        for blk in self.blocks:
+        for blk in self.blocks: # x: [2, 148, 128]
             x = blk(x)
-        x = self.norm(x)
+        x = self.norm(x) # x: [2, 148, 128]
 
-        return x, mask, ids_restore
+        return x, mask, ids_restore # x: [2, 148, 128], mask: [2, 588], ids_restore: [2, 588]
 
     def forward_decoder(self, x, ids_restore):
         # embed tokens
@@ -317,3 +321,13 @@ class MaskedAutoencoderChaViT(nn.Module):
         pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*C]
         loss = self.forward_loss(imgs, pred, mask)
         return loss, pred, mask
+
+def chmae_vit_tiny_testing_patch16_dec64d2b(**kwargs):
+    model = MaskedAutoencoderChaViT(
+        patch_size=16, embed_dim=128, depth=4, num_heads=4,
+        decoder_embed_dim=64, decoder_depth=2, decoder_num_heads=4,
+        mlp_ratio=2, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+    return model
+
+
+chmae_vit_tiny_testing = chmae_vit_tiny_testing_patch16_dec64d2b
