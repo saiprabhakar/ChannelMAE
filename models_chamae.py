@@ -247,54 +247,81 @@ class MaskedAutoencoderChaViT(nn.Module):
 
         return x, mask, ids_restore # x: [2, 148, 128], mask: [2, 588], ids_restore: [2, 588]
 
-    def forward_decoder(self, x, ids_restore):
-        # embed tokens
-        x = self.decoder_embed(x)
+    def forward_decoder(self, x, ids_restore): 
+        # x: [2, 148, 128] 
+        # ids_restore: [2, 588] 
+        # self.mask_token: torch.Size([1, 1, 64]) 
+        # self.docoder_pos_embed: torch.Size([1, 197, 64])
+
+        # embed the unmasked tokens
+        x = self.decoder_embed(x) # [2, 148, 64]
 
         # append mask tokens to sequence
-        mask_tokens = self.mask_token.repeat(
-            x.shape[0], ids_restore.shape[1] + 1 - x.shape[1], 1
-        )
-        x_cls = x[:, :1, :]
-        x_ = torch.cat([x[:, 1:, :], mask_tokens], dim=1)  # no cls token
+        mask_tokens = self.mask_token.repeat(x.shape[0], ids_restore.shape[1] + 1 - x.shape[1], 1) # torch.Size([2, 441, 64])
+        x_ = torch.cat([x[:, 1:, :], mask_tokens], dim=1)  # no cls token # torch.Size([2, 588, 64])
         
+        # unshuffle the masked and unmasked tokens
         x_ = torch.gather(
             x_, dim=1, index=ids_restore.unsqueeze(-1).repeat(1, 1, x.shape[2])
-        )  # unshuffle
-        # x : [B, L+1, nemb]
-        # reshape to [B, nc, l, nemb]
-        x_reshaped = x_.reshape(x.shape[0], self.in_chans, -1, x.shape[-1])
-        dec_pos_embed = self.decoder_pos_embed[:, 1:, :].unsqueeze(1) # [1, L, D] -> [1, 1, L, D]
-        x_reshaped = x_reshaped + dec_pos_embed # [B, nc, L, D]
-        # add channel embed
-        channels = torch.arange(self.in_chans, device=x.device).long()
-        dec_channel_embed = self.decoder_channel_embed(channels) # [nc, D]
-        dec_channel_embed = dec_channel_embed.unsqueeze(0).unsqueeze(2) # [1, nc, 1, D]
-        x_reshaped = x_reshaped + dec_channel_embed # [B, nc, L, D]
-        x_ = x_reshaped.reshape(x.shape[0], -1, x.shape[-1]) # [B, nc*L, D]
+        ) # torch.Size([2, 588, 64])
 
-        cls_pos_embed = self.decoder_pos_embed[:, :1, :]
-        x_cls = x_cls + cls_pos_embed
 
+        # # approach 1
+        # # first add the positional embed then the channel embed
+
+        # # add positional embed to all but cls token
+        # x_reshaped = x_.reshape(x.shape[0], self.in_chans, -1, x.shape[-1]) # torch.Size([2, 3, 196, 64])
+        # dec_pos_embed = self.decoder_pos_embed[:, 1:, :].unsqueeze(1) # [1, L, D] -> [1, 1, L, D] # torch.Size([1, 1, 196, 64])
+        # x_reshaped = x_reshaped + dec_pos_embed # [B, nc, L, D] # torch.Size([2, 3, 196, 64])
+
+        # # add channel embed to all but cls token
+        # channels = torch.arange(self.in_chans, device=x.device).long() # channels
+        # dec_channel_embed = self.decoder_channel_embed(channels) # [nc, D] # torch.Size([3, 64])
+        # dec_channel_embed = dec_channel_embed.unsqueeze(0).unsqueeze(2) # [1, nc, 1, D] # torch.Size([1, 3, 1, 64])
+        # x_reshaped = x_reshaped + dec_channel_embed # [B, nc, L, D] # torch.Size([2, 3, 196, 64])
+        # x_1 = x_reshaped.reshape(x.shape[0], -1, x.shape[-1]) # [B, nc*L, D] # torch.Size([2, 588, 64])
+
+        # # add positional embed to cls token to pos embed
+        # x_cls = x[:, :1, :] + self.decoder_pos_embed[:, :1, :] # torch.Size([2, 1, 64])
+
+        # # add cls token back to the sequence
+        # x1 = torch.cat([x_cls, x_1], dim=1) # [B, nc*L+1, D] # torch.Size([2, 589, 64])
+
+
+        # approach 2
+        # first add the channel embed then the positional embed
+
+        # add channel embed to all but cls token
+        channels = torch.arange(self.in_chans, device=x.device).long() # channels
+        dec_channel_embed = self.decoder_channel_embed(channels) # [nc, D] # torch.Size([3, 64])
+        dec_channel_embed = dec_channel_embed.unsqueeze(0).unsqueeze(2) # [1, nc, 1, D] # torch.Size([1, 3, 1, 64])
+        x_2 = x_.reshape(x.shape[0], self.in_chans, -1, x.shape[-1]) # torch.Size([2, 3, 196, 64])
+        x_2 = x_2 + dec_channel_embed # [B, nc, L, D] # torch.Size([2, 3, 196, 64])
+
+        # add positional embed to all but cls token
+        dec_pos_embed = self.decoder_pos_embed[:, 1:, :].unsqueeze(1) # [1, L, D] -> [1, 1, L, D] # torch.Size([1, 1, 196, 64])
+        x_2_w_pos_embed = x_2 + dec_pos_embed # torch.Size([2, 3, 196, 64])
+        x_2_w_pos_embed = x_2_w_pos_embed.reshape(x.shape[0], -1, x.shape[-1]) # [B, nc*L, D] # torch.Size([2, 588, 64])
         
-        x = torch.cat([x_cls, x_], dim=1) # [B, nc*L+1, D]
-        # print("decoder blocks input shape", x.shape)
+        x_cls = x[:, :1, :] + self.decoder_pos_embed[:, :1, :] # torch.Size([2, 1, 64])
+        x2 = torch.cat([x_cls, x_2_w_pos_embed], dim=1)
 
-        # add pos embed
-        x = x + self.decoder_pos_embed
+        assert torch.allclose(x1,x2, rtol=1e-06, atol=1e-06)
+
+
+        x = x2
 
         # apply Transformer blocks
-        for blk in self.decoder_blocks:
+        for blk in self.decoder_blocks: # torch.Size([2, 589, 64])
             x = blk(x)
-        x = self.decoder_norm(x)
+        x = self.decoder_norm(x) # torch.Size([2, 589, 64])
 
         # predictor projection
-        x = self.decoder_pred(x)
+        x = self.decoder_pred(x) # torch.Size([2, 589, 256])
 
         # remove cls token
-        x = x[:, 1:, :]
-        # print("decoder shape", x.shape) # B, L*c, p*p
-        return x
+        x = x[:, 1:, :] # B, L*c, p*p # torch.Size([2, 588, 256])
+        return x # torch.Size([2, 588, 256])
 
     def forward_loss(self, imgs, pred, mask):
         """
@@ -317,7 +344,8 @@ class MaskedAutoencoderChaViT(nn.Module):
     def forward(self, imgs, mask_ratio=0.75):
         latent, mask, ids_restore = self.forward_encoder(
             imgs, mask_ratio
-        )
+        ) # x: [2, 148, 128], mask: [2, 588], ids_restore: [2, 588]
+
         pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*C]
         loss = self.forward_loss(imgs, pred, mask)
         return loss, pred, mask
