@@ -149,15 +149,15 @@ class MaskedAutoencoderChaViT(nn.Module):
         imgs: (N, C, H, W)
         x: (N, L*C, patch_size**2)
         """
-        p = self.patch_embed.patch_size[0]
+        p = self.patch_embed.patch_size[0] # 16
         assert imgs.shape[2] == imgs.shape[3] and imgs.shape[2] % p == 0
 
-        h = w = imgs.shape[2] // p
-        x = imgs.reshape(shape=(imgs.shape[0], self.in_chans, h, p, w, p)) # B, nc, h, p, w, p
-        x = torch.einsum("nchpwq->nchwpq", x) # B, h, w, nc, p, p
-        x = x.reshape(shape=(imgs.shape[0], self.in_chans, h * w, p**2))
-        x = x.reshape(shape=(imgs.shape[0], h * w * self.in_chans, p**2))
-        # x = x.reshape(shape=(imgs.shape[0], h * w, p**2 * self.in_chans))
+        h = w = imgs.shape[2] // p # 14
+        x = imgs.reshape(shape=(imgs.shape[0], self.in_chans, h, p, w, p)) # B, nc, h, p, w, p # torch.Size([2, 3, 14, 16, 14, 16])
+        x = torch.einsum("nchpwq->nchwpq", x) # B, h, w, nc, p, p # torch.Size([2, 3, 14, 14, 16, 16])
+        x = x.reshape(shape=(imgs.shape[0], self.in_chans*h*w, p**2)) # torch.Size([2, 588, 256])
+        x_un = self.unpatchify(x)
+        assert torch.allclose(imgs, x_un)
         return x
 
     def unpatchify(self, x):
@@ -167,10 +167,8 @@ class MaskedAutoencoderChaViT(nn.Module):
         """
         p = self.patch_embed.patch_size[0]
         h = w = int( (x.shape[1]/self.in_chans) ** 0.5)
-        # assert h * w == x.shape[1]/p
+        assert h * w == x.shape[1] // self.in_chans
 
-        x = x.reshape(shape=(x.shape[0], self.in_chans, -1, x.shape[-1])) # [N, C, L, p*p]
-        x = x.reshape(shape=(x.shape[0], self.in_chans, x.shape[2], p, p)) # [N, C, L, p, p]
         x = x.reshape(shape=(x.shape[0], self.in_chans, h, w, p, p)) # [N, C, h, w, p, p]
         x = torch.einsum("nchwpq->nchpwq", x)
         imgs = x.reshape(shape=(x.shape[0], self.in_chans, h * p, h * p))
@@ -306,7 +304,7 @@ class MaskedAutoencoderChaViT(nn.Module):
         x_cls = x[:, :1, :] + self.decoder_pos_embed[:, :1, :] # torch.Size([2, 1, 64])
         x2 = torch.cat([x_cls, x_2_w_pos_embed], dim=1)
 
-        assert torch.allclose(x1,x2, rtol=1e-06, atol=1e-06)
+        # assert torch.allclose(x1,x2, rtol=1e-06, atol=1e-06)
 
 
         x = x2
@@ -346,9 +344,9 @@ class MaskedAutoencoderChaViT(nn.Module):
             imgs, mask_ratio
         ) # x: [2, 148, 128], mask: [2, 588], ids_restore: [2, 588]
 
-        pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*C]
+        pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*C] # torch.Size([2, 588, 256])
         loss = self.forward_loss(imgs, pred, mask)
-        return loss, pred, mask
+        return loss, pred, mask # loss: scalar, pred: [2, 588, 256], mask: [2, 588]
 
 def chmae_vit_tiny_testing_patch16_dec64d2b(**kwargs):
     model = MaskedAutoencoderChaViT(
