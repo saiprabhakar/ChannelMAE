@@ -380,14 +380,14 @@ class MaskedAutoencoderChaViT(nn.Module):
         return loss, pred, mask  # loss: scalar, pred: [2, 588, 256], mask: [2, 588]
 
 
-def chmae_vit_tiny_testing_patch16_dec64d2b(**kwargs):
+def chmae_vit_tiny_testing_patch16_dec32d1b(**kwargs):
     model = MaskedAutoencoderChaViT(
         patch_size=16,
-        embed_dim=128,
-        depth=4,
+        embed_dim=32,
+        depth=1,
         num_heads=4,
-        decoder_embed_dim=64,
-        decoder_depth=2,
+        decoder_embed_dim=32,
+        decoder_depth=1,
         decoder_num_heads=4,
         mlp_ratio=2,
         norm_layer=partial(nn.LayerNorm, eps=1e-6),
@@ -396,4 +396,4 @@ def chmae_vit_tiny_testing_patch16_dec64d2b(**kwargs):
     return model
 
 
-chmae_vit_tiny_testing = chmae_vit_tiny_testing_patch16_dec64d2b
+chmae_vit_tiny_testing = chmae_vit_tiny_testing_patch16_dec32d1b

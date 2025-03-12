@@ -309,10 +309,19 @@ if __name__ == "__main__":
     if args.test_mode:
         # args.model = "mae_vit_tiny_testing"
         args.model = "chmae_vit_tiny_testing"
-        args.data_path = "data/fakedataset/"
+        args.data_path = "data/mnist_small/"
         args.device = "cpu"
         args.distributed = False
         args.num_workers = 0
-        args.batch_size = 2
-        args.epochs = 2
+        args.batch_size = 4
+        args.epochs = 200
+        args.warmup_epochs = 0
+        if args.model.startswith("chmae"):
+            args.output_dir = "output_dir_chmae_mnist_.5"
+            args.log_dir = "output_dir_chmae_mnist_.5"
+        else:
+            args.output_dir = "output_dir_mae_mnist"
+            args.log_dir = "output_dir_mae_mnist"
+
+        args.mask_ratio = .5
     main(args)
