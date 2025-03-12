@@ -3,3 +3,4 @@ data/*
 *.swp
 .DS_Store
 output_dir/*
+output_dir*
