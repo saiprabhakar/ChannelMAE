@@ -364,13 +364,19 @@ if __name__ == '__main__':
         # args.model = "mae_vit_tiny_testing"
         # args.model = "chmae_vit_tiny_testing"
 
-
-        args.model = "vit_tiny_patch16"
-        
-        args.finetune = "output_dir_mae_mnist_.5/checkpoint-5.pth"
-
+        ############
         args.data_path = "data/mnist_small/"
+
+        args.model = "vit_ch_tiny_patch16"
+        args.finetune = "output_dir_chmae_mnist_.5/checkpoint-189.pth"
+        
+        # args.model = "vit_tiny_patch16"
+        # args.finetune = "output_dir_chmae_mnist_.5/checkpoint-5.pth"
+        ############
         # args.data_path = "data/fakedataset/"
+
+        ############
+
         args.device = "cpu"
         args.distributed = False
         args.num_workers = 0
