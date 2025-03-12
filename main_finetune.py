@@ -23,7 +23,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 import timm
 
-assert timm.__version__ == "0.3.2" # version check
+# assert timm.__version__ == "0.3.2" # version check
 from timm.models.layers import trunc_normal_
 from timm.data.mixup import Mixup
 from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
@@ -129,6 +129,7 @@ def get_args_parser():
     parser.add_argument('--device', default='cuda',
                         help='device to use for training / testing')
     parser.add_argument('--seed', default=0, type=int)
+    parser.add_argument("--distributed", default=False, type=bool)
     parser.add_argument('--resume', default='',
                         help='resume from checkpoint')
 
@@ -151,12 +152,14 @@ def get_args_parser():
     parser.add_argument('--dist_on_itp', action='store_true')
     parser.add_argument('--dist_url', default='env://',
                         help='url used to set up distributed training')
+    parser.add_argument("--test_mode", default=False, type=bool)
 
     return parser
 
 
 def main(args):
-    misc.init_distributed_mode(args)
+    if args.distributed:
+        misc.init_distributed_mode(args)
 
     print('job dir: {}'.format(os.path.dirname(os.path.realpath(__file__))))
     print("{}".format(args).replace(', ', ',\n'))
@@ -173,7 +176,8 @@ def main(args):
     dataset_train = build_dataset(is_train=True, args=args)
     dataset_val = build_dataset(is_train=False, args=args)
 
-    if True:  # args.distributed:
+    # if True:  # args.distributed:
+    if args.distributed:
         num_tasks = misc.get_world_size()
         global_rank = misc.get_rank()
         sampler_train = torch.utils.data.DistributedSampler(
@@ -192,6 +196,7 @@ def main(args):
     else:
         sampler_train = torch.utils.data.RandomSampler(dataset_train)
         sampler_val = torch.utils.data.SequentialSampler(dataset_val)
+        global_rank = 0
 
     if global_rank == 0 and args.log_dir is not None and not args.eval:
         os.makedirs(args.log_dir, exist_ok=True)
@@ -353,4 +358,31 @@ if __name__ == '__main__':
     args = args.parse_args()
     if args.output_dir:
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+    args.test_mode = True
+
+    if args.test_mode:
+        # args.model = "mae_vit_tiny_testing"
+        # args.model = "chmae_vit_tiny_testing"
+
+
+        args.model = "vit_tiny_patch16"
+        
+        args.finetune = "output_dir_mae_mnist_.5/checkpoint-5.pth"
+
+        args.data_path = "data/mnist_small/"
+        # args.data_path = "data/fakedataset/"
+        args.device = "cpu"
+        args.distributed = False
+        args.num_workers = 0
+        args.batch_size = 4
+        args.epochs = 2
+        args.warmup_epochs = 0
+        if args.model.startswith("chmae"):
+            args.output_dir = "output_dir_finetune_chmae"
+            args.log_dir = "output_dir_finetune_chmae"
+        else:
+            args.output_dir = "output_dir_finetune_mae"
+            args.log_dir = "output_dir_finetune_mae"
+
+        args.mask_ratio = .5
     main(args)
