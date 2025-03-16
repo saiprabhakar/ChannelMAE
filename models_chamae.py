@@ -285,27 +285,6 @@ class MaskedAutoencoderChaViT(nn.Module):
             x_, dim=1, index=ids_restore.unsqueeze(-1).repeat(1, 1, x.shape[2])
         )  # torch.Size([2, 588, 64])
 
-        # # approach 1
-        # # first add the positional embed then the channel embed
-
-        # # add positional embed to all but cls token
-        # x_reshaped = x_.reshape(x.shape[0], self.in_chans, -1, x.shape[-1]) # torch.Size([2, 3, 196, 64])
-        # dec_pos_embed = self.decoder_pos_embed[:, 1:, :].unsqueeze(1) # [1, L, D] -> [1, 1, L, D] # torch.Size([1, 1, 196, 64])
-        # x_reshaped = x_reshaped + dec_pos_embed # [B, nc, L, D] # torch.Size([2, 3, 196, 64])
-
-        # # add channel embed to all but cls token
-        # channels = torch.arange(self.in_chans, device=x.device).long() # channels
-        # dec_channel_embed = self.decoder_channel_embed(channels) # [nc, D] # torch.Size([3, 64])
-        # dec_channel_embed = dec_channel_embed.unsqueeze(0).unsqueeze(2) # [1, nc, 1, D] # torch.Size([1, 3, 1, 64])
-        # x_reshaped = x_reshaped + dec_channel_embed # [B, nc, L, D] # torch.Size([2, 3, 196, 64])
-        # x_1 = x_reshaped.reshape(x.shape[0], -1, x.shape[-1]) # [B, nc*L, D] # torch.Size([2, 588, 64])
-
-        # # add positional embed to cls token to pos embed
-        # x_cls = x[:, :1, :] + self.decoder_pos_embed[:, :1, :] # torch.Size([2, 1, 64])
-
-        # # add cls token back to the sequence
-        # x1 = torch.cat([x_cls, x_1], dim=1) # [B, nc*L+1, D] # torch.Size([2, 589, 64])
-
         # approach 2
         # first add the channel embed then the positional embed
 

@@ -272,7 +272,7 @@ def main(args):
             log_writer=log_writer,
             args=args,
         )
-        if args.output_dir and (epoch % 20 == 0 or epoch + 1 == args.epochs):
+        if args.output_dir and (epoch % 1 == 0 or epoch + 1 == args.epochs): # TODO: change back to 20
             misc.save_model(
                 args=args,
                 model=model,
@@ -308,9 +308,9 @@ if __name__ == "__main__":
 
     args.test_mode = True
     if args.test_mode:
-        # args.model = "mae_vit_tiny_testing"
-        args.model = "chmae_vit_tiny_testing"
-        args.data_path = "data/mnist_small/"
+        args.model = "mae_vit_tiny_testing"
+        # args.model = "chmae_vit_tiny_testing"
+        args.data_path = "../data/mnist_small/"
         args.device = "cpu"
         args.distributed = False
         args.num_workers = 0
@@ -318,11 +318,11 @@ if __name__ == "__main__":
         args.epochs = 200
         args.warmup_epochs = 0
         if args.model.startswith("chmae"):
-            args.output_dir = "output_dir_chmae_mnist_.5"
-            args.log_dir = "output_dir_chmae_mnist_.5"
+            args.output_dir = "../output_dir_chmae_mnist_.5"
+            args.log_dir = "../output_dir_chmae_mnist_.5"
         else:
-            args.output_dir = "output_dir_mae_mnist"
-            args.log_dir = "output_dir_mae_mnist"
+            args.output_dir = "../output_dir_mae_mnist_.5"
+            args.log_dir = "../output_dir_mae_mnist_.5"
 
         args.mask_ratio = .5
     main(args)
