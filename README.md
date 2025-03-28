@@ -34,13 +34,6 @@ This is based on `MAE` and `Vit` implementation https://github.com/facebookresea
 We implemented `ChannelMAE` in `models_chamae.py`
 We implemented `ChannelVit` in `models_vit.py`
 
-### Visualization demo
-
-Run our interactive visualization demo using [Colab notebook](https://colab.research.google.com/github/facebookresearch/mae/blob/main/demo/mae_visualize.ipynb) (no GPU needed):
-<p align="center">
-  <img src="https://user-images.githubusercontent.com/11435359/147859292-77341c70-2ed8-4703-b153-f505dcb6f2f8.png" width="600">
-</p>
-
 ### Pre-training
 
 Sample testing implementation use:
