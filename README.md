@@ -43,7 +43,19 @@ Run our interactive visualization demo using [Colab notebook](https://colab.rese
 
 ### Pre-training
 
-The pre-training instruction is in [PRETRAIN.md](PRETRAIN.md).
+Sample testing implementation use:
+```python main_pretrain.py```
+
+For submitting jobs: The instruction is in [PRETRAIN.md](PRETRAIN.md).
+
+### Fintunning and Linear Probing
+
+Sample testing implementation use:
+```python main_finetune.py```
+```python main_lineprobe.py```
+
+For submitting jobs: The instruction is in [FINETUNE.md](FINETUNE.md).
+
 
 ### License
 
