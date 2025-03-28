@@ -22,7 +22,7 @@ from torch.utils.tensorboard import SummaryWriter
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 
-import timm
+# import timm
 
 # assert timm.__version__ == "0.3.2"  # version check
 import timm.optim.optim_factory as optim_factory
@@ -31,7 +31,7 @@ import util.misc as misc
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 
 import models_mae
-import models_chamae
+import models_channelmae
 
 from engine_pretrain import train_one_epoch
 
@@ -159,8 +159,8 @@ def get_args_parser():
 
 def main(args):
 
-    if args.distributed:
-        misc.init_distributed_mode(args)
+    # if args.distributed:
+    misc.init_distributed_mode(args)
 
     print("job dir: {}".format(os.path.dirname(os.path.realpath(__file__))))
     print("{}".format(args).replace(", ", ",\n"))
@@ -190,16 +190,12 @@ def main(args):
     )
     print(dataset_train)
 
-    if args.distributed:
-        num_tasks = misc.get_world_size()
-        global_rank = misc.get_rank()
-        sampler_train = torch.utils.data.DistributedSampler(
-            dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True
-        )
-        print("Sampler_train = %s" % str(sampler_train))
-    else:
-        global_rank = 0
-        sampler_train = torch.utils.data.RandomSampler(dataset_train)
+    num_tasks = misc.get_world_size()
+    global_rank = misc.get_rank()
+    sampler_train = torch.utils.data.DistributedSampler(
+        dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True
+    )
+    print("Sampler_train = %s" % str(sampler_train))
 
     if global_rank == 0 and args.log_dir is not None:
         os.makedirs(args.log_dir, exist_ok=True)
@@ -217,10 +213,12 @@ def main(args):
     )
 
     # define the model
-    if args.model.startswith("chmae"):
-        model = models_chamae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss)
-    else:
+    if args.model.startswith("channelmae"):
+        model = models_channelmae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss)
+    elif args.model.startswith("mae"):
         model = models_mae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss)
+    else:
+        raise ValueError("Unknown model: {}".format(args.model))
 
     model.to(device)
 
@@ -260,8 +258,7 @@ def main(args):
     print(f"Start training for {args.epochs} epochs")
     start_time = time.time()
     for epoch in range(args.start_epoch, args.epochs):
-        if args.distributed:
-            data_loader_train.sampler.set_epoch(epoch)
+        data_loader_train.sampler.set_epoch(epoch)
         train_stats = train_one_epoch(
             model,
             data_loader_train,
@@ -308,21 +305,21 @@ if __name__ == "__main__":
 
     args.test_mode = True
     if args.test_mode:
-        args.model = "mae_vit_tiny_testing"
-        # args.model = "chmae_vit_tiny_testing"
+        # args.model = "mae_vit_tiny_testing"
+        args.model = "channelmae_vit_tiny_testing"
         args.data_path = "../data/mnist_small/"
         args.device = "cpu"
         args.distributed = False
         args.num_workers = 0
         args.batch_size = 4
-        args.epochs = 200
+        args.epochs = 2
         args.warmup_epochs = 0
-        if args.model.startswith("chmae"):
-            args.output_dir = "../output_dir_chmae_mnist_.5"
-            args.log_dir = "../output_dir_chmae_mnist_.5"
+        if args.model.startswith("channelmae"):
+            args.output_dir = "../output_dir_channelmae_mnist"
+            args.log_dir = "../output_dir_channelmae_mnist"
         else:
-            args.output_dir = "../output_dir_mae_mnist_.5"
-            args.log_dir = "../output_dir_mae_mnist_.5"
+            args.output_dir = "../output_dir_mae_mnist"
+            args.log_dir = "../output_dir_mae_mnist"
 
         args.mask_ratio = .5
     main(args)

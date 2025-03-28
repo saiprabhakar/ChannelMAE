@@ -19,7 +19,7 @@ from timm.models.vision_transformer import PatchEmbed, Block
 from util.pos_embed import get_2d_sincos_pos_embed
 
 
-class MaskedAutoencoderChaViT(nn.Module):
+class ChannelMaskedAutoencoderViT(nn.Module):
     """Masked Autoencoder with VisionTransformer backbone"""
 
     def __init__(
@@ -359,8 +359,8 @@ class MaskedAutoencoderChaViT(nn.Module):
         return loss, pred, mask  # loss: scalar, pred: [2, 588, 256], mask: [2, 588]
 
 
-def chmae_vit_tiny_testing_patch16_dec32d1b(**kwargs):
-    model = MaskedAutoencoderChaViT(
+def channelmae_vit_tiny_testing_patch16_dec32d1b(**kwargs):
+    model = ChannelMaskedAutoencoderViT(
         patch_size=16,
         embed_dim=32,
         depth=1,
@@ -375,30 +375,61 @@ def chmae_vit_tiny_testing_patch16_dec32d1b(**kwargs):
     return model
 
 
-def chmae_vit_base_patch16_dec512d8b(**kwargs):
-    model = MaskedAutoencoderChaViT(
-        patch_size=16, embed_dim=768, depth=12, num_heads=12,
-        decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
-        mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+def channelmae_vit_base_patch16_dec512d8b(**kwargs):
+    model = ChannelMaskedAutoencoderViT(
+        patch_size=16,
+        embed_dim=768,
+        depth=12,
+        num_heads=12,
+        decoder_embed_dim=512,
+        decoder_depth=8,
+        decoder_num_heads=16,
+        mlp_ratio=4,
+        norm_layer=partial(nn.LayerNorm, eps=1e-6),
+        **kwargs
+    )
     return model
 
 
-def chmae_vit_large_patch16_dec512d8b(**kwargs):
-    model = MaskedAutoencoderChaViT(
-        patch_size=16, embed_dim=1024, depth=24, num_heads=16,
-        decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
-        mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+def channelmae_vit_large_patch16_dec512d8b(**kwargs):
+    model = ChannelMaskedAutoencoderViT(
+        patch_size=16,
+        embed_dim=1024,
+        depth=24,
+        num_heads=16,
+        decoder_embed_dim=512,
+        decoder_depth=8,
+        decoder_num_heads=16,
+        mlp_ratio=4,
+        norm_layer=partial(nn.LayerNorm, eps=1e-6),
+        **kwargs
+    )
     return model
 
 
-def chmae_vit_huge_patch14_dec512d8b(**kwargs):
-    model = MaskedAutoencoderChaViT(
-        patch_size=14, embed_dim=1280, depth=32, num_heads=16,
-        decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
-        mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+def channelmae_vit_huge_patch14_dec512d8b(**kwargs):
+    model = ChannelMaskedAutoencoderViT(
+        patch_size=14,
+        embed_dim=1280,
+        depth=32,
+        num_heads=16,
+        decoder_embed_dim=512,
+        decoder_depth=8,
+        decoder_num_heads=16,
+        mlp_ratio=4,
+        norm_layer=partial(nn.LayerNorm, eps=1e-6),
+        **kwargs
+    )
     return model
 
-chmae_vit_tiny_testing = chmae_vit_tiny_testing_patch16_dec32d1b
-chmae_vit_base_patch16 = chmae_vit_base_patch16_dec512d8b  # decoder: 512 dim, 8 blocks
-chmae_vit_large_patch16 = chmae_vit_large_patch16_dec512d8b  # decoder: 512 dim, 8 blocks
-chmae_vit_huge_patch14 = chmae_vit_huge_patch14_dec512d8b  # decoder: 512 dim, 8 blocks
+
+channelmae_vit_tiny_testing = channelmae_vit_tiny_testing_patch16_dec32d1b
+channelmae_vit_base_patch16 = (
+    channelmae_vit_base_patch16_dec512d8b  # decoder: 512 dim, 8 blocks
+)
+channelmae_vit_large_patch16 = (
+    channelmae_vit_large_patch16_dec512d8b  # decoder: 512 dim, 8 blocks
+)
+channelmae_vit_huge_patch14 = (
+    channelmae_vit_huge_patch14_dec512d8b  # decoder: 512 dim, 8 blocks
+)
