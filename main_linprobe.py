@@ -25,7 +25,7 @@ import torchvision.datasets as datasets
 
 import timm
 
-assert timm.__version__ == "0.3.2" # version check
+# assert timm.__version__ == "0.3.2" # version check
 from timm.models.layers import trunc_normal_
 
 import util.misc as misc
@@ -70,7 +70,7 @@ def get_args_parser():
     parser.add_argument('--finetune', default='',
                         help='finetune from checkpoint')
     parser.add_argument('--global_pool', action='store_true')
-    parser.set_defaults(global_pool=False)
+    parser.set_defaults(global_pool=True)
     parser.add_argument('--cls_token', action='store_false', dest='global_pool',
                         help='Use class token instead of global pool for classification')
 
@@ -87,6 +87,7 @@ def get_args_parser():
     parser.add_argument('--device', default='cuda',
                         help='device to use for training / testing')
     parser.add_argument('--seed', default=0, type=int)
+    parser.add_argument("--distributed", default=False, type=bool)
     parser.add_argument('--resume', default='',
                         help='resume from checkpoint')
 
@@ -110,6 +111,7 @@ def get_args_parser():
     parser.add_argument('--dist_url', default='env://',
                         help='url used to set up distributed training')
 
+    parser.add_argument("--test_mode", default=False, type=bool)
     return parser
 
 
@@ -313,4 +315,29 @@ if __name__ == '__main__':
     args = args.parse_args()
     if args.output_dir:
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+
+    args.test_mode = True
+    if args.test_mode:
+        args.data_path = "../data/mnist_small/"
+
+        args.model = "vit_ch_tiny_patch16"
+        args.finetune = "../output_dir_chmae_mnist_.5/checkpoint-189.pth"
+        
+        # args.model = "vit_tiny_patch16"
+        # args.finetune = "../output_dir_mae_mnist_.5/checkpoint-5.pth"
+        ############
+
+        args.device = "cpu"
+        args.distributed = False
+        args.num_workers = 0
+        args.batch_size = 4
+        args.epochs = 2
+        args.warmup_epochs = 0
+        if args.model.startswith("vit_ch"):
+            args.output_dir = "../output_dir_linprobe_chmae"
+            args.log_dir = "../output_dir_linprobe_chmae"
+        else:
+            args.output_dir = "../output_dir_linprobe_mae"
+            args.log_dir = "../output_dir_linprobe_mae"
+
     main(args)
