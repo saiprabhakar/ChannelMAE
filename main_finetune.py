@@ -361,20 +361,13 @@ if __name__ == '__main__':
     args.test_mode = True
 
     if args.test_mode:
-        # args.model = "mae_vit_tiny_testing"
-        # args.model = "chmae_vit_tiny_testing"
-
-        ############
         args.data_path = "../data/mnist_small/"
 
-        args.model = "vit_ch_tiny_patch16"
-        args.finetune = "../output_dir_chmae_mnist_.5/checkpoint-189.pth"
+        # args.model = "vit_ch_tiny_patch16"
+        # args.finetune = "../output_dir_chmae_mnist_.5/checkpoint-189.pth"
         
-        # args.model = "vit_tiny_patch16"
-        # args.finetune = "../output_dir_chmae_mnist_.5/checkpoint-5.pth"
-        ############
-        # args.data_path = "../data/fakedataset/"
-
+        args.model = "vit_tiny_patch16"
+        args.finetune = "../output_dir_mae_mnist_.5/checkpoint-5.pth"
         ############
 
         args.device = "cpu"
@@ -383,12 +376,11 @@ if __name__ == '__main__':
         args.batch_size = 4
         args.epochs = 2
         args.warmup_epochs = 0
-        if args.model.startswith("chmae"):
+        if args.model.startswith("vit_ch"):
             args.output_dir = "../output_dir_finetune_chmae"
             args.log_dir = "../output_dir_finetune_chmae"
         else:
             args.output_dir = "../output_dir_finetune_mae"
             args.log_dir = "../output_dir_finetune_mae"
 
-        args.mask_ratio = .5
     main(args)
