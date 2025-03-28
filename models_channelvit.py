@@ -168,7 +168,7 @@ class ChannelVisionTransformer(nn.Module):
             x = self.norm(x)
             outcome = x[:, 0]
 
-        return x # [2, 128]
+        return outcome # [2, 128]
 
     def forward(self, x):
         x = self.forward_features(x) # torch.Size([4, 3, 224, 224]) -> torch.Size([4, 128])
