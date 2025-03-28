@@ -373,11 +373,11 @@ if __name__ == '__main__':
     if args.test_mode:
         args.data_path = "../data/mnist_small/"
 
-        args.model = "channelvit_tiny_patch16"
-        args.finetune = "../output_dir_channelmae_mnist/checkpoint-1.pth"
+        # args.model = "channelvit_tiny_patch16"
+        # args.finetune = "../output_dir_channelmae_mnist/checkpoint-1.pth"
         
-        # args.model = "vit_tiny_patch16"
-        # args.finetune = "../output_dir_mae_mnist_.5/checkpoint-5.pth"
+        args.model = "vit_tiny_patch16"
+        args.finetune = "../output_dir_mae_mnist_.5/checkpoint-5.pth"
         ############
 
         args.device = "cpu"

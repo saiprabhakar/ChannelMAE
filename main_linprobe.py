@@ -35,6 +35,7 @@ from util.lars import LARS
 from util.crop import RandomResizedCrop
 
 import models_vit
+import models_channelvit
 
 from engine_finetune import train_one_epoch, evaluate
 
@@ -188,10 +189,20 @@ def main(args):
         drop_last=False
     )
 
-    model = models_vit.__dict__[args.model](
-        num_classes=args.nb_classes,
-        global_pool=args.global_pool,
-    )
+
+    # define the model
+    if args.model.startswith("channelvit"):
+        model = models_channelvit.__dict__[args.model](
+            num_classes=args.nb_classes,
+            global_pool=args.global_pool,
+        )
+    elif args.model.startswith("vit"):
+        model = models_vit.__dict__[args.model](
+            num_classes=args.nb_classes,
+            global_pool=args.global_pool,
+        )
+    else:
+        raise ValueError("Unknown model: {}".format(args.model))
 
     if args.finetune and not args.eval:
         checkpoint = torch.load(args.finetune, map_location='cpu')
@@ -321,11 +332,11 @@ if __name__ == '__main__':
         ############
         args.data_path = "../data/mnist_small/"
 
-        args.model = "vit_ch_tiny_patch16"
-        args.finetune = "../output_dir_chmae_mnist_.5/checkpoint-189.pth"
+        # args.model = "channelvit_tiny_patch16"
+        # args.finetune = "../output_dir_chmae_mnist_.5/checkpoint-189.pth"
         
-        # args.model = "vit_tiny_patch16"
-        # args.finetune = "../output_dir_mae_mnist_.5/checkpoint-5.pth"
+        args.model = "vit_tiny_patch16"
+        args.finetune = "../output_dir_mae_mnist_.5/checkpoint-5.pth"
         ############
 
         args.device = "cpu"
@@ -334,9 +345,9 @@ if __name__ == '__main__':
         args.batch_size = 4
         args.epochs = 2
         args.warmup_epochs = 0
-        if args.model.startswith("vit_ch"):
-            args.output_dir = "../output_dir_linprobe_chmae"
-            args.log_dir = "../output_dir_linprobe_chmae"
+        if args.model.startswith("channelvit"):
+            args.output_dir = "../output_dir_linprobe_channelmae"
+            args.log_dir = "../output_dir_linprobe_channelmae"
         else:
             args.output_dir = "../output_dir_linprobe_mae"
             args.log_dir = "../output_dir_linprobe_mae"
