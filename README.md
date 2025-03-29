@@ -1,5 +1,43 @@
 ## ChannelMAE (Masked Autoencoders + Channel Vision Transformer): A PyTorch Implementation
 
+This is a fun repo, it combines Masked AutoEncoders (MAE) with Channel Vision Transformers (ChannelVit) to Channel Masked AutoEncoders (ChannelMAE). It is essentially channels getting rolled out during MAE pretraining. This repos also has support for subsequent fine-tunning.
+
+**Masked AutoEncoders (MAE):**
+Are a powerfull pretraining model were we mask out often 75% of the images and make the model predict the rest.
+
+**Channel Vision Transformers (ChannelVit):**
+Are useful in non-traditional image applications like cell-painting images or satellite images, where each channels conveys very different information and it doesnt makes sense stacking them up.
+
+**Channel Masked AutoEncoders (ChannelMAE):**
+Combining them can be useful for pretraining models for non-traditional image applications like cell-painting images or satellite images.
+This is based on `MAE` and `Vit` implementation https://github.com/facebookresearch/mae, modified to add `ChannelVit` and `ChannelMAE`
+
+### Contributions
+
+- [x] Pre-training code for MAE and ChannelMAE
+- [x] Fine-tuning code for Vit and ChannelVit (encoders of MAE and ChannelMAE)
+- [x] Linprobe code for Vit and ChannelVit (encoders of MAE and ChannelMAE)
+
+We implemented `ChannelMAE` in `models_chamae.py`
+We implemented `ChannelVit` in `models_vit.py`
+
+
+### Pre-training
+
+Sample testing implementation use:
+```python main_pretrain.py```
+
+For submitting jobs: The instruction is in [PRETRAIN.md](PRETRAIN.md).
+
+### Fintunning and Linear Probing
+
+Sample testing implementation use:
+```python main_finetune.py```
+```python main_lineprobe.py```
+
+For submitting jobs: The instruction is in [FINETUNE.md](FINETUNE.md).
+
+
 ### Masked Autoencoders
 Masked Autoencoders Are Scalable Vision Learners
 
@@ -16,38 +54,10 @@ Channel Vision Transformer: An Image Is Worth C x 16 x 16 Words
   <p align="center">
   <img src="assets/channelvit.jpg" width=90% align="center" alt="my alt text"/>
   </p>
-  <figcaption width=80%><em>
-  Illustration of ChannelViT. The input for ChannelViT is a cell image from JUMP-CP, which comprises five fluorescence channels (colored differently) and three brightfield channels (colored in B&W). ChannelViT generates patch tokens for each individual channel, utilizing a learnable channel embedding </em><b>chn</b><em> to preserve channel-specific information. The positional embeddings </em><b>pos</b><em> and the linear projection </em><b>W</b><em> are shared across all channels.
-  </em></figcaption>
 </figure>
 <br/>
-<br/>
 
-This is based on `MAE` and `Vit` implementation https://github.com/facebookresearch/mae, modified to add `ChannelVit` and `ChannelMAE`
 
-### Contributions
-
-- [x] Pre-training code for MAE and ChannelMAE
-- [x] Fine-tuning code for Vit and ChannelVit (encoders of MAE and ChannelMAE)
-- [x] Linprobe code for Vit and ChannelVit (encoders of MAE and ChannelMAE)
-
-We implemented `ChannelMAE` in `models_chamae.py`
-We implemented `ChannelVit` in `models_vit.py`
-
-### Pre-training
-
-Sample testing implementation use:
-```python main_pretrain.py```
-
-For submitting jobs: The instruction is in [PRETRAIN.md](PRETRAIN.md).
-
-### Fintunning and Linear Probing
-
-Sample testing implementation use:
-```python main_finetune.py```
-```python main_lineprobe.py```
-
-For submitting jobs: The instruction is in [FINETUNE.md](FINETUNE.md).
 
 
 ### License
